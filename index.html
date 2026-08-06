@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Guess the Song by Decade</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent2: #a855f7;
+      --good: #22c55e;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #app { width: 100%; max-width: 480px; padding: 20px; }
+    .card {
+      background: var(--card); border-radius: 24px;
+      padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      text-align: center;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; line-height: 1.2; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 20px; }
+    .counter {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 18px; font-size: 0.85rem; color: var(--muted);
+    }
+    .counter .badge {
+      background: rgba(56,189,248,0.15); color: var(--accent);
+      padding: 6px 12px; border-radius: 999px; font-weight: 700;
+    }
+    .btn {
+      width: 100%; padding: 16px; border: none; border-radius: 16px;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: transform .08s, opacity .2s;
+      margin: 8px 0; color: white;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-good { background: var(--good); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .input-wrap { margin: 16px 0; position: relative; }
+    input[type="text"] {
+      width: 100%; padding: 16px; font-size: 1.1rem; border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);
+      color: var(--text); outline: none; text-align: center;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    .feedback { min-height: 26px; margin: 12px 0; font-weight: 700; font-size: 1rem; }
+    .feedback.good { color: var(--good); }
+    .feedback.bad { color: var(--bad); }
+    .hint { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+    .result-title { font-size: 1.4rem; margin-bottom: 8px; }
+    .score-big { font-size: 3rem; font-weight: 800; margin: 12px 0; color: var(--accent); }
+    .rank { color: var(--muted); margin-bottom: 20px; }
+    .review { text-align: left; max-height: 260px; overflow-y: auto; margin: 16px 0; padding-right: 4px; }
+    .review-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .review-item:last-child { border-bottom: none; }
+    .review-item .title { font-weight: 600; }
+    .review-item .artist { color: var(--muted); font-size: 0.8rem; }
+    .review-item .status { font-weight: 700; font-size: 0.85rem; }
+    .status.correct { color: var(--good); }
+    .status.wrong { color: var(--bad); }
+    .hidden { display: none; }
+    .equalizer { display: flex; justify-content: center; gap: 4px; height: 40px; align-items: flex-end; margin: 14px 0; }
+    .bar { width: 6px; background: var(--accent); border-radius: 4px; animation: bounce 0.6s infinite alternate ease-in-out; }
+    .bar:nth-child(2) { animation-delay: 0.1s; }
+    .bar:nth-child(3) { animation-delay: 0.2s; }
+    .bar:nth-child(4) { animation-delay: 0.3s; }
+    .bar:nth-child(5) { animation-delay: 0.15s; }
+    .equalizer.paused .bar { animation-play-state: paused; height: 6px !important; }
+    @keyframes bounce { from { height: 6px; } to { height: 36px; } }
+    .small { font-size: 0.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="start-screen" class="card">
+      <h1>Guess the Song by Decade</h1>
+      <p class="subtitle">Pick a decade. Play a real 30-second snippet, then type the song title. 5 songs per round.</p>
+      <button id="start-80s" class="btn btn-primary">1980s Classics</button>
+      <button id="start-90s" class="btn btn-primary">1990s Throwbacks</button>
+      <button id="start-00s" class="btn btn-primary">2000s Anthems</button>
+      <button id="start-10s" class="btn btn-primary">2010s Hits</button>
+      <button id="start-recent" class="btn btn-primary">Recent Songs</button>
+      <p class="small">Works on iPhone in Safari. Turn sound on and tap Play Song Snippet. Real clips load from Apple's iTunes preview service; if one can't load, a melody hint plays instead.</p>
+    </div>
+
+    <div id="quiz-screen" class="card hidden">
+      <div class="counter">
+        <span id="progress">Song 1 / 5</span>
+        <span class="badge" id="score">Score: 0</span>
+      </div>
+      <div class="equalizer paused" id="equalizer">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      </div>
+      <button id="play-btn" class="btn btn-primary">Play Song Snippet</button>
+      <div class="input-wrap">
+        <input type="text" id="guess" placeholder="Type the song title..." autocomplete="off" />
+      </div>
+      <button id="submit-btn" class="btn btn-good">Submit Answer</button>
+      <div id="feedback" class="feedback"></div>
+      <p id="hint" class="hint"></p>
+      <div style="display:flex;gap:8px;">
+        <button id="skip-btn" class="btn btn-secondary" style="flex:1;">Skip</button>
+        <button id="hint-btn" class="btn btn-secondary" style="flex:1;">Hint</button>
+      </div>
+    </div>
+
+    <div id="result-screen" class="card hidden">
+      <div class="result-title">Round Complete!</div>
+      <div class="score-big" id="final-score">0 / 10</div>
+      <div class="rank" id="rank"></div>
+      <div class="review" id="review"></div>
+      <button id="restart-btn" class="btn btn-primary">Choose Another Decade</button>
+    </div>
+  </div>
+
+  <script>
+    const eighties = [
+      { title: "Billie Jean", artist: "Michael Jackson", year: 1983 },
+      { title: "Sweet Child o' Mine", artist: "Guns N' Roses", year: 1987 },
+      { title: "Like a Prayer", artist: "Madonna", year: 1989 },
+      { title: "Take On Me", artist: "a-ha", year: 1985 },
+      { title: "Every Breath You Take", artist: "The Police", year: 1983 }
+    ];
+    const nineties = [
+      { title: "Wannabe", artist: "Spice Girls", year: 1996 },
+      { title: "Smells Like Teen Spirit", artist: "Nirvana", year: 1991 },
+      { title: "...Baby One More Time", artist: "Britney Spears", year: 1998 },
+      { title: "I Want It That Way", artist: "Backstreet Boys", year: 1999 },
+      { title: "No Scrubs", artist: "TLC", year: 1999 }
+    ];
+    const twoThousands = [
+      { title: "Hey Ya!", artist: "OutKast", year: 2003 },
+      { title: "Crazy in Love", artist: "Beyonce ft. Jay-Z", year: 2003 },
+      { title: "Mr. Brightside", artist: "The Killers", year: 2004 },
+      { title: "Since U Been Gone", artist: "Kelly Clarkson", year: 2004 },
+      { title: "Umbrella", artist: "Rihanna", year: 2007 }
+    ];
+    const twentyTens = [
+      { title: "Rolling in the Deep", artist: "Adele", year: 2010 },
+      { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars", year: 2014 },
+      { title: "Shape of You", artist: "Ed Sheeran", year: 2017 },
+      { title: "Blinding Lights", artist: "The Weeknd", year: 2019 },
+      { title: "Happy", artist: "Pharrell Williams", year: 2013 }
+    ];
+    const recent = [
+      { title: "Flowers", artist: "Miley Cyrus", year: 2023 },
+      { title: "As It Was", artist: "Harry Styles", year: 2022 },
+      { title: "Anti-Hero", artist: "Taylor Swift", year: 2022 },
+      { title: "Espresso", artist: "Sabrina Carpenter", year: 2024 },
+      { title: "Vampire", artist: "Olivia Rodrigo", year: 2023 }
+    ];
+
+    const quizzes = {
+      '80s': { title: "1980s Classics", songs: eighties },
+      '90s': { title: "1990s Throwbacks", songs: nineties },
+      '00s': { title: "2000s Anthems", songs: twoThousands },
+      '10s': { title: "2010s Hits", songs: twentyTens },
+      recent: { title: "Recent Songs", songs: recent }
+    };
+
+    const noteFreq = {
+      C4:261.63, D4:293.66, E4:329.63, F4:349.23, G4:392.00, A4:440.00, B4:493.88,
+      C5:523.25, D5:587.33, E5:659.25, F5:698.46, G5:783.99
+    };
+
+    let ctx = null;
+    let currentAudio = null;
+    let songs = eighties;
+    let currentQuizKey = '80s';
+    let currentSongIndex = 0;
+    let score = 0;
+    let answered = false;
+    let hintUsed = false;
+    let results = [];
+
+    const startScreen = document.getElementById('start-screen');
+    const quizScreen = document.getElementById('quiz-screen');
+    const resultScreen = document.getElementById('result-screen');
+    const progressEl = document.getElementById('progress');
+    const scoreEl = document.getElementById('score');
+    const guessInput = document.getElementById('guess');
+    const feedbackEl = document.getElementById('feedback');
+    const hintEl = document.getElementById('hint');
+    const equalizer = document.getElementById('equalizer');
+
+    const SNIPPET_MS = 12000;
+    let snippetTimer = null;
+
+    function initAudio() {
+      if (!ctx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        ctx = new AudioContext();
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+    }
+
+    function playTone(freq, duration, when) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t = when || ctx.currentTime;
+      const attack = 0.02;
+      const decay = Math.min(0.15, duration * 0.4);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + attack);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration - decay);
+      osc.start(t);
+      osc.stop(t + duration - 0.001);
+    }
+
+    function stopCurrent() {
+      if (snippetTimer) { clearTimeout(snippetTimer); snippetTimer = null; }
+      if (currentAudio) { try { currentAudio.pause(); } catch (e) {} currentAudio = null; }
+    }
+
+    function loadPreview(song) {
+      if (song._previewPromise) return song._previewPromise;
+      song._previewPromise = new Promise(resolve => {
+        const cb = 'itcb_' + Math.random().toString(36).slice(2);
+        const term = encodeURIComponent(song.title + ' ' + song.artist);
+        const s = document.createElement('script');
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+          s.remove();
+          resolve(song.previewUrl || null);
+        };
+        window[cb] = data => {
+          const list = (data && data.results) || [];
+          const hit = list.find(x => x.previewUrl);
+          song.previewUrl = hit ? hit.previewUrl : null;
+          finish();
+        };
+        s.onerror = finish;
+        setTimeout(finish, 8000);
+        s.src = `https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=5&callback=${cb}`;
+        document.body.appendChild(s);
+      });
+      return song._previewPromise;
+    }
+
+    function playSynth(index) {
+      const song = songs[index];
+      const notes = (song.melody || 'C4:.25 E4:.3 G4:.25 C5:.4 G4:.25 E4:.3').split(' ').filter(n => n);
+      let when = ctx.currentTime + 0.05;
+      let total = 0;
+      notes.forEach(noteStr => {
+        const [name, dur] = noteStr.split(':');
+        const duration = parseFloat(dur);
+        playTone(noteFreq[name] || 440, duration, when);
+        total += duration;
+        when += duration;
+      });
+      setTimeout(() => equalizer.classList.add('paused'), total * 1000 + 100);
+    }
+
+    function playSong(index) {
+      initAudio();
+      equalizer.classList.remove('paused');
+      stopCurrent();
+      const song = songs[index];
+      const startPreview = () => {
+        const audio = new Audio(song.previewUrl);
+        audio.preload = 'auto';
+        currentAudio = audio;
+        audio.onended = () => equalizer.classList.add('paused');
+        audio.play().then(() => {
+          snippetTimer = setTimeout(() => {
+            try { audio.pause(); } catch (e) {}
+            equalizer.classList.add('paused');
+          }, SNIPPET_MS);
+        }).catch(() => {
+          equalizer.classList.add('paused');
+          playSynth(index);
+        });
+      };
+      if (song.previewUrl) {
+        startPreview();
+      } else {
+        loadPreview(song).then(url => {
+          if (url) startPreview();
+          else playSynth(index);
+        });
+      }
+    }
+
+    function normalize(s) {
+      return s.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b(the|a|an|and|feat|ft|featuring)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function isCorrect(guess, title) {
+      const g = normalize(guess);
+      const t = normalize(title);
+      if (!g) return false;
+      if (g === t) return true;
+      if (t.includes(g) && g.length > 2) return true;
+      if (g.includes(t) && t.length > 2) return true;
+      return false;
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function loadQuestion() {
+      answered = false;
+      hintUsed = false;
+      guessInput.value = '';
+      guessInput.disabled = false;
+      guessInput.focus();
+      feedbackEl.textContent = '';
+      feedbackEl.className = 'feedback';
+      hintEl.textContent = '';
+      progressEl.textContent = `Song ${currentSongIndex + 1} / ${songs.length}`;
+      scoreEl.textContent = `Score: ${score}`;
+      loadPreview(songs[currentSongIndex]);
+      if (currentSongIndex + 1 < songs.length) loadPreview(songs[currentSongIndex + 1]);
+      playSong(currentSongIndex);
+    }
+
+    function submitAnswer() {
+      if (answered) return;
+      const guess = guessInput.value.trim();
+      if (!guess) return;
+      answered = true;
+      guessInput.disabled = true;
+      const song = songs[currentSongIndex];
+      const correct = isCorrect(guess, song.title);
+      if (correct) {
+        const points = hintUsed ? 1 : 2;
+        score += points;
+        feedbackEl.textContent = `Correct! "${song.title}" by ${song.artist}`;
+        feedbackEl.className = 'feedback good';
+      } else {
+        feedbackEl.textContent = `Wrong. It was "${song.title}" by ${song.artist}`;
+        feedbackEl.className = 'feedback bad';
+      }
+      results.push({ title: song.title, artist: song.artist, correct, guess });
+      scoreEl.textContent = `Score: ${score}`;
+      setTimeout(() => {
+        currentSongIndex++;
+        if (currentSongIndex >= songs.length) showResults();
+        else loadQuestion();
+      }, 1800);
+    }
+
+    function showHint() {
+      if (hintUsed || answered) return;
+      const song = songs[currentSongIndex];
+      const words = song.title.split(' ');
+      const first = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+      hintEl.textContent = `Hint: ${song.year} · starts with "${first}..."`;
+      hintUsed = true;
+    }
+
+    function skip() {
+      if (answered) return;
+      answered = true;
+      const song = songs[currentSongIndex];
+      feedbackEl.textContent = `Skipped: "${song.title}" by ${song.artist}`;
+      feedbackEl.className = 'feedback bad';
+      results.push({ title: song.title, artist: song.artist, correct: false, guess: '' });
+      setTimeout(() => {
+        currentSongIndex++;
+        if (currentSongIndex >= songs.length) showResults();
+        else loadQuestion();
+      }, 1400);
+    }
+
+    function showResults() {
+      stopCurrent();
+      quizScreen.classList.add('hidden');
+      resultScreen.classList.remove('hidden');
+      const max = songs.length * 2;
+      document.getElementById('final-score').textContent = `${score} / ${max}`;
+      const pct = score / max;
+      let rank = '';
+      if (pct === 1) rank = 'Perfect! Music master.';
+      else if (pct >= 0.8) rank = 'Awesome! You know your hits.';
+      else if (pct >= 0.6) rank = 'Good job!';
+      else if (pct >= 0.4) rank = 'Not bad. Keep listening.';
+      else rank = 'Keep practicing those bangers!';
+      document.getElementById('rank').textContent = rank;
+      const review = document.getElementById('review');
+      review.innerHTML = results.map((r, i) => `
+        <div class="review-item">
+          <div>
+            <div class="title">${i + 1}. ${r.title}</div>
+            <div class="artist">${r.artist}${r.guess ? ` — you said "${r.guess}"` : ''}</div>
+          </div>
+          <div class="status ${r.correct ? 'correct' : 'wrong'}">${r.correct ? 'Correct' : 'Wrong'}</div>
+        </div>
+      `).join('');
+    }
+
+    function startQuiz(key) {
+      initAudio();
+      currentQuizKey = key;
+      songs = quizzes[key].songs;
+      shuffle(songs);
+      currentSongIndex = 0;
+      score = 0;
+      results = [];
+      startScreen.classList.add('hidden');
+      resultScreen.classList.add('hidden');
+      quizScreen.classList.remove('hidden');
+      loadQuestion();
+    }
+
+    function showMenu() {
+      stopCurrent();
+      quizScreen.classList.add('hidden');
+      resultScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+    }
+
+    document.getElementById('start-80s').addEventListener('click', () => startQuiz('80s'));
+    document.getElementById('start-90s').addEventListener('click', () => startQuiz('90s'));
+    document.getElementById('start-00s').addEventListener('click', () => startQuiz('00s'));
+    document.getElementById('start-10s').addEventListener('click', () => startQuiz('10s'));
+    document.getElementById('start-recent').addEventListener('click', () => startQuiz('recent'));
+    document.getElementById('restart-btn').addEventListener('click', showMenu);
+    document.getElementById('play-btn').addEventListener('click', () => playSong(currentSongIndex));
+    document.getElementById('submit-btn').addEventListener('click', submitAnswer);
+    document.getElementById('hint-btn').addEventListener('click', showHint);
+    document.getElementById('skip-btn').addEventListener('click', skip);
+    guessInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+  </script>
+</body>
+</html>
